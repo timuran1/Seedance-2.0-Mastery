@@ -1,5 +1,7 @@
-import { GoogleGenAI, Type } from "@google/genai";
-
 export default function handler(req: any, res: any) {
-  res.json({ ok: true, hasType: typeof Type, hasGoogleGenAI: typeof GoogleGenAI });
+  import('../lib/handlers').then((mod) => {
+    res.json({ ok: true, exports: Object.keys(mod) });
+  }).catch((err) => {
+    res.status(500).json({ ok: false, error: err.message, stack: err.stack?.split('\n').slice(0,4) });
+  });
 }
