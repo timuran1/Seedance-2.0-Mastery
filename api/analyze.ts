@@ -1,2 +1,2 @@
-import { analyzeHandler } from '../lib/handlers';
+import { analyzeHandler } from '../lib/handlers.js';
 export default analyzeHandler;
