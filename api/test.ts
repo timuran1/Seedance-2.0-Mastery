@@ -1,14 +1,13 @@
-import { GoogleGenAI } from "@google/genai";
+import { analyzeHandler } from '../lib/handlers';
 
 export default async function handler(req: any, res: any) {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite-preview',
-      contents: 'Say "OK" in one word.'
-    });
-    res.json({ ok: true, response: response.text });
+    // Test if the import worked
+    if (typeof analyzeHandler !== 'function') {
+      return res.status(500).json({ ok: false, error: 'analyzeHandler is not a function', type: typeof analyzeHandler });
+    }
+    res.json({ ok: true, message: 'import from lib/handlers works' });
   } catch (error: any) {
-    res.status(500).json({ ok: false, error: error.message, stack: error.stack?.split('\n').slice(0, 3) });
+    res.status(500).json({ ok: false, error: error.message });
   }
 }
