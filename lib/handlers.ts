@@ -21,7 +21,7 @@ export const posts: any[] = [
 ];
 
 export async function analyzeHandler(req: any, res: any) {
-  const { prompt } = req.body;
+  const { prompt } = req.body || {};
   if (!prompt?.trim()) return res.status(400).json({ error: 'prompt required' });
   try {
     const ai = getAi();
@@ -50,7 +50,7 @@ export async function analyzeHandler(req: any, res: any) {
 }
 
 export async function enhanceHandler(req: any, res: any) {
-  const { idea, mode } = req.body;
+  const { idea, mode } = req.body || {};
   if (!idea?.trim()) return res.status(400).json({ error: 'idea required' });
   const modeInstruction = mode === 'multi-shot'
     ? "Generate a multi-shot sequence with 3 distinct camera shots (Shot 1: Wide establishing shot... Shot 2: Medium tracking shot... Shot 3: Extreme close-up...). Make it feel like a cohesive, professionally directed scene."
@@ -81,7 +81,7 @@ export async function enhanceHandler(req: any, res: any) {
 }
 
 export async function filterHandler(req: any, res: any) {
-  const { prompt, strategy = 'auto' } = req.body;
+  const { prompt, strategy = 'auto' } = req.body || {};
   if (!prompt?.trim()) return res.status(400).json({ error: 'prompt required' });
   const strategyMap: Record<string, string> = {
     cinematic: "Use film terminology (35mm, wide shot, anamorphic lens) to anchor the prompt as a legitimate creative production.",
@@ -117,7 +117,7 @@ export async function filterHandler(req: any, res: any) {
 }
 
 export async function translateHandler(req: any, res: any) {
-  const { prompt } = req.body;
+  const { prompt } = req.body || {};
   if (!prompt?.trim()) return res.status(400).json({ error: 'prompt required' });
   try {
     const ai = getAi();
@@ -135,7 +135,7 @@ export async function translateHandler(req: any, res: any) {
 const DIRECTOR_SYSTEM = `You are an award-winning Hollywood cinematographer and expert AI prompt engineer for the Seedance 2.0 video generator. Help users craft visually stunning, cinematic video prompts. Ask clarifying questions about their vision, suggest dynamic camera angles (pan, tracking, FPV), dramatic lighting (volumetric, golden hour, chiaroscuro), and specific artistic styles. Keep responses concise, creative, and action-oriented. Provide prompt snippets they can easily use. Use **bold** for emphasis, *italics*, and bullet points (*). Do NOT use code blocks.`;
 
 export async function directorHandler(req: any, res: any) {
-  const { messages } = req.body;
+  const { messages } = req.body || {};
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
