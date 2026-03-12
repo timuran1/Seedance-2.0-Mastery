@@ -42,7 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isOpen, 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-white tracking-wide">Seedance<span className="text-brand-400">2.0</span></h1>
+            <h1 className="text-xl font-bold text-white tracking-wide">Kamod<span className="text-brand-400"> AI</span></h1>
           </div>
         </div>
 

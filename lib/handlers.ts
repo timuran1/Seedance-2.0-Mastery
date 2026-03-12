@@ -12,9 +12,9 @@ const getAi = () => {
 export const posts: any[] = [
   {
     id: "1",
-    author: "Seedance Team",
+    author: "Kamod AI Team",
     avatar: "🌱",
-    content: "Welcome to the Seedance 2.0 Community Forum! Share your best prompts here.",
+    content: "Welcome to the Kamod AI Community Forum! Share your best Seedance 2.0 prompts here.",
     timestamp: Date.now() - 100000,
     likes: 5,
   }
