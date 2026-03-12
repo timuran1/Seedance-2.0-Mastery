@@ -1,74 +1,30 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
 
 interface Props {
   content: string;
 }
 
 const MarkdownRenderer: React.FC<Props> = ({ content }) => {
-  // A very rudimentary markdown parser for our specific needs
-  const parseMarkdown = (text: string) => {
-    const lines = text.split('\n');
-    return lines.map((line, index) => {
-      // Headers
-      if (line.startsWith('# ')) {
-        return <h1 key={index} className="text-3xl font-bold text-brand-300 mt-6 mb-4">{line.substring(2)}</h1>;
-      }
-      if (line.startsWith('## ')) {
-        return <h2 key={index} className="text-2xl font-semibold text-brand-200 mt-5 mb-3">{line.substring(3)}</h2>;
-      }
-      
-      // Lists
-      if (line.trim().startsWith('* ')) {
-        // Handle bold within list items
-        let processedLine = line.trim().substring(2);
-        const parts = processedLine.split(/(\*\*.*?\*\*)/g);
-        
-        return (
-          <li key={index} className="ml-6 mb-2 list-disc text-slate-300">
-             {parts.map((part, i) => {
-                if (part.startsWith('**') && part.endsWith('**')) {
-                    return <strong key={i} className="text-white">{part.substring(2, part.length - 2)}</strong>;
-                }
-                return <span key={i}>{part}</span>;
-             })}
-          </li>
-        );
-      }
-
-      // Empty lines
-      if (line.trim() === '') {
-        return <div key={index} className="h-4"></div>;
-      }
-
-      // Paragraphs with inline styling
-      let processedLine = line;
-      // Italics
-      const italicParts = processedLine.split(/(\*.*?\*)/g);
-      
-      return (
-        <p key={index} className="mb-4 text-slate-300 leading-relaxed">
-           {italicParts.map((part, i) => {
-                if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
-                    return <em key={i} className="text-brand-100">{part.substring(1, part.length - 1)}</em>;
-                }
-                // Handle bold inside non-italic parts
-                const boldParts = part.split(/(\*\*.*?\*\*)/g);
-                return boldParts.map((bPart, j) => {
-                     if (bPart.startsWith('**') && bPart.endsWith('**')) {
-                        return <strong key={`${i}-${j}`} className="text-white">{bPart.substring(2, bPart.length - 2)}</strong>;
-                    }
-                    return <span key={`${i}-${j}`}>{bPart}</span>;
-                });
-             })}
-        </p>
-      );
-    });
-  };
-
   return (
-    <div className="prose prose-invert max-w-none">
-      {parseMarkdown(content)}
-    </div>
+    <ReactMarkdown
+      components={{
+        h1: ({ children }) => <h1 className="text-3xl font-bold text-brand-300 mt-6 mb-4">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-2xl font-semibold text-brand-200 mt-5 mb-3">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-xl font-semibold text-brand-100 mt-4 mb-2">{children}</h3>,
+        p:  ({ children }) => <p className="mb-4 text-slate-300 leading-relaxed">{children}</p>,
+        ul: ({ children }) => <ul className="mb-4 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="mb-4 space-y-1 list-decimal ml-6 text-slate-300">{children}</ol>,
+        li: ({ children }) => <li className="ml-6 list-disc text-slate-300">{children}</li>,
+        strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+        em: ({ children }) => <em className="text-brand-100">{children}</em>,
+        code: ({ children }) => <code className="bg-slate-800 text-brand-300 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>,
+        blockquote: ({ children }) => <blockquote className="border-l-4 border-brand-500 pl-4 my-4 text-slate-400 italic">{children}</blockquote>,
+        hr: () => <hr className="border-slate-700 my-6" />,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   );
 };
 
