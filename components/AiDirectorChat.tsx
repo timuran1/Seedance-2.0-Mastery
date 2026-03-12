@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 
+// Web Speech API type shim (Chrome/Edge expose it as webkit-prefixed)
+const SpeechRecognitionAPI =
+  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
 interface AiDirectorChatProps {
   onApplyPrompt?: (prompt: string) => void;
 }
@@ -22,10 +26,12 @@ const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   // Conversation history sent to the API (excludes the hardcoded greeting)
   const apiHistoryRef = useRef<ApiMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (isOpen && messagesEndRef.current) {
@@ -116,6 +122,51 @@ const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
     }
   };
 
+  const toggleVoice = () => {
+    if (!SpeechRecognitionAPI) {
+      alert('Voice input is not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = ''; // auto-detect language
+
+    let finalTranscript = inputText;
+
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interim = transcript;
+        }
+      }
+      setInputText(finalTranscript + interim);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setInputText(finalTranscript);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
+
   return (
     <>
       {/* Floating Toggle Button */}
@@ -203,10 +254,31 @@ const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="E.g., I want a moody shot of a detective..."
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all"
+              placeholder={isListening ? 'Listening...' : 'E.g., I want a moody shot of a detective...'}
+              className={`flex-1 bg-slate-800 border rounded-xl px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 transition-all ${
+                isListening ? 'border-red-500 ring-1 ring-red-500 placeholder-red-400' : 'border-slate-700 focus:ring-brand-500'
+              }`}
               disabled={isTyping}
             />
+            {/* Mic button */}
+            <button
+              type="button"
+              onClick={toggleVoice}
+              disabled={isTyping}
+              title={isListening ? 'Stop recording' : 'Speak your message'}
+              className={`p-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                isListening
+                  ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white'
+              }`}
+            >
+              {isListening ? (
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+              )}
+            </button>
+            {/* Send button */}
             <button
               type="submit"
               disabled={!inputText.trim() || isTyping}
