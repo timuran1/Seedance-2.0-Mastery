@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import Sidebar from './components/Sidebar';
 import { COURSE_MODULES } from './constants';
 import MarkdownRenderer from './components/MarkdownRenderer';
@@ -107,6 +108,7 @@ function App() {
 
       {/* Floating AI Director Assistant */}
       <AiDirectorChat onApplyPrompt={handleApplyPrompt} />
+      <Analytics />
 
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes fadeIn {
