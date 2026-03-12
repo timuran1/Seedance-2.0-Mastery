@@ -33,6 +33,14 @@ export interface EnhancedPromptResult {
   explanation: string;
 }
 
+export interface FilterBypassResult {
+  safePrompt: string;
+  explanation: string;
+  chineseTranslation: string;
+}
+
+export type FilterStrategy = 'auto' | 'cinematic' | 'roles' | 'context' | 'noise';
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model';

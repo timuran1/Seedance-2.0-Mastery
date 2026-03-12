@@ -18,6 +18,7 @@ async function startServer() {
     {
       id: "1",
       author: "Seedance Team",
+      avatar: "🌱",
       content: "Welcome to the Seedance 2.0 Community Forum! Share your best prompts here.",
       timestamp: Date.now() - 100000,
       likes: 5,

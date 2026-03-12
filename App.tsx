@@ -4,13 +4,20 @@ import { COURSE_MODULES } from './constants';
 import MarkdownRenderer from './components/MarkdownRenderer';
 import Playground from './components/Playground';
 import AiDirectorChat from './components/AiDirectorChat';
+import CommunityForum from './components/CommunityForum';
 
 function App() {
   const [currentView, setCurrentView] = useState<string>('intro');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sharedPrompt, setSharedPrompt] = useState<{ text: string; timestamp: number } | null>(null);
 
   // Find the current lesson content if it's not the playground
   const currentLesson = COURSE_MODULES.find(m => m.id === currentView);
+
+  const handleApplyPrompt = (prompt: string) => {
+    setSharedPrompt({ text: prompt, timestamp: Date.now() });
+    setCurrentView('playground');
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950">
@@ -70,7 +77,9 @@ function App() {
             </a>
 
             {currentView === 'playground' ? (
-              <Playground />
+              <Playground initialPrompt={sharedPrompt} />
+            ) : currentView === 'forum' ? (
+              <CommunityForum />
             ) : currentLesson ? (
               <div className="animate-fade-in pb-12">
                 <div className="mb-2 text-brand-400 font-medium text-sm tracking-wide uppercase">
@@ -97,7 +106,7 @@ function App() {
       </div>
 
       {/* Floating AI Director Assistant */}
-      <AiDirectorChat />
+      <AiDirectorChat onApplyPrompt={handleApplyPrompt} />
 
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes fadeIn {

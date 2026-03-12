@@ -4,7 +4,11 @@ import { ChatMessage } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import { Chat, GenerateContentResponse } from '@google/genai';
 
-const AiDirectorChat: React.FC = () => {
+interface AiDirectorChatProps {
+  onApplyPrompt?: (prompt: string) => void;
+}
+
+const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -138,7 +142,21 @@ const AiDirectorChat: React.FC = () => {
                   <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                 ) : (
                   <div className="text-sm">
-                    {msg.text ? <MarkdownRenderer content={msg.text} /> : (
+                    {msg.text ? (
+                      <>
+                        <MarkdownRenderer content={msg.text} />
+                        {onApplyPrompt && !msg.isStreaming && (
+                          <button 
+                            onClick={() => onApplyPrompt(msg.text)}
+                            className="mt-2 text-xs flex items-center gap-1 text-brand-400 hover:text-brand-300 transition-colors bg-slate-900/50 px-2 py-1 rounded border border-slate-700 hover:border-brand-500"
+                            title="Send to Playground"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            Use in Playground
+                          </button>
+                        )}
+                      </>
+                    ) : (
                       <div className="flex gap-1 items-center h-5">
                         <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
                         <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>

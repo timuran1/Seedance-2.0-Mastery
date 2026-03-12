@@ -1,14 +1,25 @@
 import React, { useState } from 'react';
 import { PROMPT_TAGS, EXAMPLE_PROMPTS } from '../constants';
-import { analyzePrompt, generatePreviewImage, enhancePrompt } from '../services/geminiService';
-import { AnalysisResult, PromptTag, EnhancedPromptResult } from '../types';
+import { analyzePrompt, generatePreviewImage, enhancePrompt, refinePromptForFilter, translateToChinese } from '../services/geminiService';
+import { AnalysisResult, PromptTag, EnhancedPromptResult, FilterBypassResult, FilterStrategy } from '../types';
 
-type Tab = 'builder' | 'examples' | 'enhancer';
+type Tab = 'builder' | 'examples' | 'enhancer' | 'filter-guard';
 type EnhancerMode = 'regular' | 'multi-shot';
 
-const Playground: React.FC = () => {
-  const [prompt, setPrompt] = useState('');
+interface PlaygroundProps {
+  initialPrompt?: { text: string; timestamp: number } | null;
+}
+
+const Playground: React.FC<PlaygroundProps> = ({ initialPrompt }) => {
+  const [prompt, setPrompt] = useState(initialPrompt?.text || '');
   const [activeTab, setActiveTab] = useState<Tab>('builder');
+  
+  // Update prompt if initialPrompt changes (e.g. from AI Director)
+  React.useEffect(() => {
+    if (initialPrompt) {
+      setPrompt(initialPrompt.text);
+    }
+  }, [initialPrompt]);
   
   // Analysis & Generation state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -23,6 +34,14 @@ const Playground: React.FC = () => {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancedResult, setEnhancedResult] = useState<EnhancedPromptResult | null>(null);
   const [enhancerError, setEnhancerError] = useState<string | null>(null);
+
+  // Filter Guard state
+  const [filterInput, setFilterInput] = useState('');
+  const [filterStrategy, setFilterStrategy] = useState<FilterStrategy>('auto');
+  const [isRefining, setIsRefining] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [filterResult, setFilterResult] = useState<FilterBypassResult | null>(null);
+  const [filterError, setFilterError] = useState<string | null>(null);
 
   // Group tags for the builder
   const groupedTags = PROMPT_TAGS.reduce((acc, tag) => {
@@ -65,11 +84,58 @@ const Playground: React.FC = () => {
     }
   };
 
+  const handleRefinePrompt = async () => {
+    if (!filterInput.trim()) return;
+    setIsRefining(true);
+    setFilterError(null);
+    setFilterResult(null);
+
+    try {
+      const result = await refinePromptForFilter(filterInput, filterStrategy);
+      setFilterResult(result);
+    } catch (err) {
+      setFilterError("Failed to refine the prompt. Please try again.");
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (!filterInput.trim()) return;
+    setIsTranslating(true);
+    setFilterError(null);
+    setFilterResult(null);
+
+    try {
+      const translation = await translateToChinese(filterInput);
+      setFilterResult({
+        safePrompt: filterInput, // Keep original as "safe" since we are just translating
+        explanation: "Direct translation to Chinese (Tip #6). This often bypasses filters for simple prompts.",
+        chineseTranslation: translation
+      });
+    } catch (err) {
+      setFilterError("Failed to translate the prompt. Please try again.");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const applyEnhancedPrompt = () => {
     if (enhancedResult) {
       setPrompt(enhancedResult.enhancedPrompt);
       setVagueIdea('');
       setEnhancedResult(null);
+      // Clean analysis
+      setAnalysis(null);
+      setGeneratedImage(null);
+    }
+  };
+
+  const applySafePrompt = () => {
+    if (filterResult) {
+      setPrompt(filterResult.safePrompt);
+      setFilterInput('');
+      setFilterResult(null);
       // Clean analysis
       setAnalysis(null);
       setGeneratedImage(null);
@@ -118,10 +184,10 @@ const Playground: React.FC = () => {
         <div className="space-y-6 flex flex-col">
           
           {/* Tabs header */}
-          <div className="flex border-b border-slate-700">
+          <div className="flex border-b border-slate-700 overflow-x-auto">
             <button
               onClick={() => setActiveTab('builder')}
-              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
                 activeTab === 'builder' 
                   ? 'border-brand-500 text-brand-400' 
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
@@ -131,7 +197,7 @@ const Playground: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('examples')}
-              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
                 activeTab === 'examples' 
                   ? 'border-brand-500 text-brand-400' 
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
@@ -141,13 +207,23 @@ const Playground: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('enhancer')}
-              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
                 activeTab === 'enhancer' 
                   ? 'border-brand-500 text-brand-400' 
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
               }`}
             >
               AI Enhancer ✨
+            </button>
+            <button
+              onClick={() => setActiveTab('filter-guard')}
+              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
+                activeTab === 'filter-guard' 
+                  ? 'border-brand-500 text-brand-400' 
+                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+              }`}
+            >
+              Filter Guard 🛡️
             </button>
           </div>
 
@@ -196,12 +272,21 @@ const Playground: React.FC = () => {
                 <p className="text-sm text-slate-400">
                   Have a rough idea? Type it below and the AI will expand it into a perfect Seedance 2.0 prompt.
                 </p>
-                <textarea
-                  value={vagueIdea}
-                  onChange={(e) => setVagueIdea(e.target.value)}
-                  placeholder="e.g. A cat drinking coffee on the moon..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all resize-none h-24"
-                />
+                <div className="relative">
+                  <textarea
+                    value={vagueIdea}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 500) {
+                        setVagueIdea(e.target.value);
+                      }
+                    }}
+                    placeholder="e.g. A cat drinking coffee on the moon..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all resize-none h-24"
+                  />
+                  <div className="absolute bottom-2 right-2 text-xs text-slate-500 bg-slate-900/80 px-1.5 rounded">
+                    {vagueIdea.length}/500 chars • {vagueIdea.trim() ? vagueIdea.trim().split(/\s+/).length : 0} words
+                  </div>
+                </div>
                 
                 <div className="flex items-center justify-between">
                   <div className="flex gap-4">
@@ -256,13 +341,99 @@ const Playground: React.FC = () => {
                 )}
               </div>
             )}
+
+            {activeTab === 'filter-guard' && (
+              <div className="space-y-4 flex flex-col h-full">
+                <p className="text-sm text-slate-400">
+                  Paste a prompt that might get flagged. We'll rewrite it using "safe context" principles to help it pass.
+                </p>
+                <textarea
+                  value={filterInput}
+                  onChange={(e) => setFilterInput(e.target.value)}
+                  placeholder="e.g. A soldier firing a rifle..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all resize-none h-24"
+                />
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-400 font-medium">Strategy:</label>
+                    <select
+                      value={filterStrategy}
+                      onChange={(e) => setFilterStrategy(e.target.value as FilterStrategy)}
+                      className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-white focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                    >
+                      <option value="auto">Auto (Best Practice)</option>
+                      <option value="cinematic">Cinematic Language (Tip 5)</option>
+                      <option value="roles">Role Rephrasing (Tip 2)</option>
+                      <option value="context">Safe Context Wrapper (Tip 1)</option>
+                      <option value="noise">Remove Noise (Tip 3)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={handleRefinePrompt}
+                    disabled={isRefining || isTranslating || !filterInput.trim()}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    {isRefining ? 'Analyzing...' : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Analyze & Fix
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleTranslate}
+                    disabled={isRefining || isTranslating || !filterInput.trim()}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 ml-2"
+                  >
+                    {isTranslating ? 'Translating...' : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
+                        Translate Only
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {filterError && (
+                  <div className="text-red-400 text-sm p-2 bg-red-500/10 rounded">{filterError}</div>
+                )}
+
+                {filterResult && (
+                  <div className="mt-2 p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-lg space-y-3 animate-fade-in flex-1 overflow-y-auto custom-scrollbar">
+                    <div className="text-xs text-emerald-300 font-semibold uppercase tracking-wider">Safe Version</div>
+                    <p className="text-slate-200 text-sm whitespace-pre-wrap">{filterResult.safePrompt}</p>
+                    
+                    <div className="pt-2 border-t border-emerald-500/20">
+                      <div className="text-xs text-emerald-300 font-semibold uppercase tracking-wider mb-1">Chinese Translation (Tip #6)</div>
+                      <p className="text-slate-300 text-sm font-mono bg-slate-900/50 p-2 rounded select-all">{filterResult.chineseTranslation}</p>
+                    </div>
+
+                    <p className="text-slate-400 text-xs italic">Fix: {filterResult.explanation}</p>
+                    
+                    <button
+                      onClick={applySafePrompt}
+                      className="w-full py-2 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-200 border border-emerald-500/50 rounded-md text-sm transition-colors mt-2"
+                    >
+                      Use Safe Prompt
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Final Prompt Textarea */}
           <div className="space-y-3">
-            <label htmlFor="prompt-input" className="block text-sm font-medium text-slate-300">
-              Your Final Prompt
-            </label>
+            <div className="flex justify-between items-center">
+              <label htmlFor="prompt-input" className="block text-sm font-medium text-slate-300">
+                Your Final Prompt
+              </label>
+              <span className="text-xs text-slate-500">
+                {prompt.trim() ? prompt.trim().split(/\s+/).length : 0} words
+              </span>
+            </div>
             <textarea
               id="prompt-input"
               rows={5}
@@ -340,8 +511,13 @@ const Playground: React.FC = () => {
                 </div>
 
                 {analysis.suggestions && analysis.suggestions.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-slate-400 uppercase">Suggestions to improve:</h4>
+                  <div className={`space-y-2 ${analysis.score < 70 ? 'p-4 bg-yellow-900/20 border border-yellow-500/40 rounded-lg shadow-[0_0_15px_rgba(234,179,8,0.1)]' : ''}`}>
+                    <h4 className={`text-xs font-semibold uppercase ${analysis.score < 70 ? 'text-yellow-400 flex items-center gap-2' : 'text-slate-400'}`}>
+                      {analysis.score < 70 && (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                      )}
+                      Suggestions to improve:
+                    </h4>
                     <ul className="space-y-2">
                       {analysis.suggestions.map((sug, i) => (
                         <li key={i} className="flex gap-2 text-sm text-slate-300">

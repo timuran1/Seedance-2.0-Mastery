@@ -4,19 +4,36 @@ import { io, Socket } from 'socket.io-client';
 interface Post {
   id: string;
   author: string;
+  avatar: string;
   content: string;
   timestamp: number;
   likes: number;
 }
 
+interface UserProfile {
+  username: string;
+  avatar: string;
+}
+
+const AVATAR_OPTIONS = ['👨‍🚀', '👩‍🎨', '🤖', '👽', '🦊', '🐯', '🦁', '🦄', '🐲', '🧙‍♂️'];
+
 const CommunityForum: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
-  const [authorName, setAuthorName] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [tempUsername, setTempUsername] = useState('');
+  const [tempAvatar, setTempAvatar] = useState(AVATAR_OPTIONS[0]);
+  
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
+    // Load profile from local storage
+    const savedProfile = localStorage.getItem('seedance_user_profile');
+    if (savedProfile) {
+      setUserProfile(JSON.parse(savedProfile));
+    }
+
     // Fetch initial posts
     fetch('/api/posts')
       .then(res => res.json())
@@ -48,13 +65,23 @@ const CommunityForum: React.FC = () => {
     };
   }, []);
 
+  const handleProfileSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempUsername.trim()) return;
+    
+    const profile = { username: tempUsername, avatar: tempAvatar };
+    setUserProfile(profile);
+    localStorage.setItem('seedance_user_profile', JSON.stringify(profile));
+  };
+
   const handlePostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostContent.trim() || !authorName.trim()) return;
+    if (!newPostContent.trim() || !userProfile) return;
 
     if (socketRef.current) {
       socketRef.current.emit('new_post', {
-        author: authorName,
+        author: userProfile.username,
+        avatar: userProfile.avatar,
         content: newPostContent,
       });
       setNewPostContent('');
@@ -88,44 +115,95 @@ const CommunityForum: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Create Post */}
+        {/* Left Column: Profile & Create Post */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <svg className="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-              Share a Prompt
-            </h2>
-            <form onSubmit={handlePostSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Your Name</label>
-                <input
-                  type="text"
-                  value={authorName}
-                  onChange={(e) => setAuthorName(e.target.value)}
-                  placeholder="e.g. PromptMaster99"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-600 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
-                  required
-                />
+          
+          {!userProfile ? (
+            <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+              <h2 className="text-lg font-bold text-white mb-4">Join the Discussion</h2>
+              <form onSubmit={handleProfileSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Choose a Username</label>
+                  <input
+                    type="text"
+                    value={tempUsername}
+                    onChange={(e) => setTempUsername(e.target.value)}
+                    placeholder="e.g. PromptMaster99"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-600 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-2">Pick an Avatar</label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {AVATAR_OPTIONS.map((avatar) => (
+                      <button
+                        key={avatar}
+                        type="button"
+                        onClick={() => setTempAvatar(avatar)}
+                        className={`text-2xl p-2 rounded-lg transition-all ${
+                          tempAvatar === avatar 
+                            ? 'bg-brand-500/20 border border-brand-500 scale-110' 
+                            : 'bg-slate-900 border border-slate-700 hover:bg-slate-800'
+                        }`}
+                      >
+                        {avatar}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={!tempUsername.trim()}
+                  className="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Set Profile
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <svg className="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  New Post
+                </h2>
+                <div className="flex items-center gap-2 bg-slate-900 px-2 py-1 rounded-full border border-slate-700">
+                  <span className="text-lg">{userProfile.avatar}</span>
+                  <span className="text-xs font-medium text-slate-300 max-w-[80px] truncate">{userProfile.username}</span>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Message / Prompt</label>
-                <textarea
-                  value={newPostContent}
-                  onChange={(e) => setNewPostContent(e.target.value)}
-                  placeholder="Share your prompt or ask a question..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-600 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all resize-none h-32"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!isConnected || !newPostContent.trim() || !authorName.trim()}
-                className="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Post to Forum
-              </button>
-            </form>
-          </div>
+              
+              <form onSubmit={handlePostSubmit} className="space-y-4">
+                <div>
+                  <textarea
+                    value={newPostContent}
+                    onChange={(e) => setNewPostContent(e.target.value)}
+                    placeholder="Share your prompt or ask a question..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white placeholder-slate-600 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all resize-none h-32"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!isConnected || !newPostContent.trim()}
+                  className="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Post to Forum
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('seedance_user_profile');
+                    setUserProfile(null);
+                  }}
+                  className="w-full py-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  Change Profile
+                </button>
+              </form>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Feed */}
@@ -139,8 +217,8 @@ const CommunityForum: React.FC = () => {
               <div key={post.id} className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 hover:border-slate-600 transition-colors">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-600 flex items-center justify-center text-white font-bold shadow-inner">
-                      {post.author.charAt(0).toUpperCase()}
+                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-2xl shadow-inner border border-slate-600">
+                      {post.avatar || '👤'}
                     </div>
                     <div>
                       <h3 className="text-white font-medium">{post.author}</h3>

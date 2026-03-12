@@ -140,5 +140,10 @@ export const EXAMPLE_PROMPTS: ExamplePrompt[] = [
     id: 'ex3',
     title: 'Zero Gravity (Sci-Fi)',
     prompt: 'An astronaut in a sleek white suit floating weightlessly outside an airlock, orbiting a colossal blue gas giant, harsh rim lighting from a distant sun illuminating the suit visor, extremely slow tracking shot moving closer, hyper-realistic, IMAX 70mm style.'
+  },
+  {
+    id: 'ex4',
+    title: 'Dramatic Noir (Lighting & Angles)',
+    prompt: 'A detective in a trench coat standing under a flickering streetlamp in a rainy alleyway, high contrast chiaroscuro lighting, deep shadows, low angle shot looking up at the detective\'s face, rain falling heavily, 35mm film grain, cinematic masterpiece.'
   }
 ];
