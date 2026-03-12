@@ -76,6 +76,26 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isOpen, 
 
           <div>
              <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                Create
+              </h3>
+               <button
+                  onClick={() => {
+                    setCurrentView('create');
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-md transition-colors text-sm font-medium flex items-center gap-2 ${
+                    currentView === 'create'
+                      ? 'bg-brand-500/10 text-brand-300'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.847v6.306a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  Generate Video
+                </button>
+          </div>
+
+          <div>
+             <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                 Community
               </h3>
                <button

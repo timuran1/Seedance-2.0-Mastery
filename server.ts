@@ -42,6 +42,39 @@ async function startServer() {
   app.post("/api/translate", translateHandler);
   app.post("/api/director", directorHandler);
 
+  // Seedance video generation endpoints (MUAPI key stays server-side only)
+  app.post("/api/generate", async (req, res) => {
+    const apiKey = process.env.MUAPI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'MUAPI_API_KEY not configured' });
+    const { model, ...params } = req.body || {};
+    if (!model) return res.status(400).json({ error: 'model required' });
+    try {
+      const response = await fetch(`https://api.muapi.ai/api/v1/${model}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        body: JSON.stringify(params),
+      });
+      res.status(response.status).json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/result", async (req, res) => {
+    const apiKey = process.env.MUAPI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'MUAPI_API_KEY not configured' });
+    const { id } = req.query as { id?: string };
+    if (!id) return res.status(400).json({ error: 'id required' });
+    try {
+      const response = await fetch(`https://api.muapi.ai/api/v1/predictions/${id}/result`, {
+        headers: { 'x-api-key': apiKey },
+      });
+      res.status(response.status).json(await response.json());
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

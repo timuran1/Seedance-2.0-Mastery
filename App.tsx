@@ -6,6 +6,7 @@ import MarkdownRenderer from './components/MarkdownRenderer';
 import Playground from './components/Playground';
 import AiDirectorChat from './components/AiDirectorChat';
 import CommunityForum from './components/CommunityForum';
+import CreateTab from './components/CreateTab';
 
 function App() {
   const [currentView, setCurrentView] = useState<string>('intro');
@@ -79,6 +80,8 @@ function App() {
 
             {currentView === 'playground' ? (
               <Playground initialPrompt={sharedPrompt} />
+            ) : currentView === 'create' ? (
+              <CreateTab />
             ) : currentView === 'forum' ? (
               <CommunityForum />
             ) : currentLesson ? (
