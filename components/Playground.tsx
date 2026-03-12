@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PROMPT_TAGS, EXAMPLE_PROMPTS } from '../constants';
-import { analyzePrompt, generatePreviewImage, enhancePrompt, refinePromptForFilter, translateToChinese } from '../services/geminiService';
+import { analyzePrompt, enhancePrompt, refinePromptForFilter, translateToChinese } from '../services/geminiService';
 import { AnalysisResult, PromptTag, EnhancedPromptResult, FilterBypassResult, FilterStrategy } from '../types';
 
 type Tab = 'builder' | 'examples' | 'enhancer' | 'filter-guard';
@@ -21,12 +21,9 @@ const Playground: React.FC<PlaygroundProps> = ({ initialPrompt }) => {
     }
   }, [initialPrompt]);
   
-  // Analysis & Generation state
+  // Analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // Enhancer state
   const [vagueIdea, setVagueIdea] = useState('');
@@ -64,8 +61,6 @@ const Playground: React.FC<PlaygroundProps> = ({ initialPrompt }) => {
     setPrompt(exampleText);
     // Clear previous analysis when loading new
     setAnalysis(null);
-    setGeneratedImage(null);
-    setGenerationError(null);
   };
 
   const handleEnhance = async () => {
@@ -125,9 +120,7 @@ const Playground: React.FC<PlaygroundProps> = ({ initialPrompt }) => {
       setPrompt(enhancedResult.enhancedPrompt);
       setVagueIdea('');
       setEnhancedResult(null);
-      // Clean analysis
       setAnalysis(null);
-      setGeneratedImage(null);
     }
   };
 
@@ -136,38 +129,23 @@ const Playground: React.FC<PlaygroundProps> = ({ initialPrompt }) => {
       setPrompt(filterResult.safePrompt);
       setFilterInput('');
       setFilterResult(null);
-      // Clean analysis
       setAnalysis(null);
-      setGeneratedImage(null);
     }
   };
 
   const handleRunAnalysis = async () => {
     if (!prompt.trim()) return;
-    
+
     setIsAnalyzing(true);
     setAnalysis(null);
-    setGenerationError(null);
-    
+
     try {
-      // Run analysis
       const result = await analyzePrompt(prompt);
       setAnalysis(result);
-      
-      // Run generation in parallel
-      setIsGenerating(true);
-      const imgResult = await generatePreviewImage(prompt);
-      if (imgResult.error) {
-        setGenerationError(imgResult.error);
-      } else if (imgResult.imageUrl) {
-        setGeneratedImage(imgResult.imageUrl);
-      }
     } catch (error) {
       console.error(error);
-      setGenerationError("Failed to communicate with AI.");
     } finally {
       setIsAnalyzing(false);
-      setIsGenerating(false);
     }
   };
 
@@ -445,16 +423,16 @@ const Playground: React.FC<PlaygroundProps> = ({ initialPrompt }) => {
             <div className="flex justify-end">
               <button
                 onClick={handleRunAnalysis}
-                disabled={isAnalyzing || isGenerating || !prompt.trim()}
+                disabled={isAnalyzing || !prompt.trim()}
                 className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-brand-500/20 flex items-center gap-2"
               >
-                {(isAnalyzing || isGenerating) ? (
+                {isAnalyzing ? (
                    <>
                     <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Simulating...
+                    Analyzing...
                    </>
                 ) : (
                    <>
@@ -529,52 +507,6 @@ const Playground: React.FC<PlaygroundProps> = ({ initialPrompt }) => {
                   </div>
                 )}
               </div>
-            )}
-          </div>
-
-          {/* Visual Preview */}
-          <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-slate-700 p-6 flex flex-col">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <svg className="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              Simulated Output
-            </h2>
-            
-            <div className="relative aspect-video bg-slate-900 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
-              {!generatedImage && !isGenerating && !generationError && (
-                 <div className="text-slate-600 text-sm flex flex-col items-center gap-2">
-                    <svg className="w-8 h-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                    Preview will appear here
-                 </div>
-              )}
-
-              {isGenerating && (
-                <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center z-10 backdrop-blur-sm">
-                   <div className="w-10 h-10 border-4 border-brand-500/30 border-t-brand-500 rounded-full animate-spin mb-3"></div>
-                   <p className="text-brand-300 text-sm animate-pulse font-medium">Generating visual preview...</p>
-                </div>
-              )}
-
-              {generationError && !isGenerating && (
-                <div className="p-4 text-center">
-                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-red-500/10 text-red-400 mb-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  </div>
-                  <p className="text-red-400 text-sm">{generationError}</p>
-                </div>
-              )}
-
-              {generatedImage && !isGenerating && (
-                <img 
-                  src={generatedImage} 
-                  alt="Generated preview" 
-                  className="w-full h-full object-cover animate-fade-in"
-                />
-              )}
-            </div>
-            {generatedImage && (
-              <p className="text-xs text-slate-500 mt-3 text-center">
-                * Note: Image generated by Gemini as a static proxy for Seedance 2.0 video output.
-              </p>
             )}
           </div>
 

@@ -1,38 +1,32 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { createDirectorChat } from '../services/geminiService';
 import { ChatMessage } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
-import { Chat, GenerateContentResponse } from '@google/genai';
 
 interface AiDirectorChatProps {
   onApplyPrompt?: (prompt: string) => void;
 }
 
+interface ApiMessage {
+  role: 'user' | 'model';
+  text: string;
+}
+
 const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'init-1',
+      role: 'model',
+      text: "Action! I'm your AI Director. Tell me a bit about the scene you want to create, and let's make it cinematic. What's our subject?"
+    }
+  ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  
-  const chatRef = useRef<Chat | null>(null);
+
+  // Conversation history sent to the API (excludes the hardcoded greeting)
+  const apiHistoryRef = useRef<ApiMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize chat instance
-  useEffect(() => {
-    if (!chatRef.current) {
-      chatRef.current = createDirectorChat();
-      // Add initial greeting
-      setMessages([
-        {
-          id: 'init-1',
-          role: 'model',
-          text: "Action! I'm your AI Director. Tell me a bit about the scene you want to create, and let's make it cinematic. What's our subject?"
-        }
-      ]);
-    }
-  }, []);
-
-  // Auto-scroll to bottom
   useEffect(() => {
     if (isOpen && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -41,51 +35,82 @@ const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!inputText.trim() || !chatRef.current || isTyping) return;
+    if (!inputText.trim() || isTyping) return;
 
     const userMessage = inputText.trim();
     setInputText('');
-    
-    // Add user message to UI
+
+    // Add user message to display and API history
     const userId = Date.now().toString();
     setMessages(prev => [...prev, { id: userId, role: 'user', text: userMessage }]);
-    
-    // Setup placeholder for bot response
+    apiHistoryRef.current.push({ role: 'user', text: userMessage });
+
+    // Add placeholder for bot response
     const botId = (Date.now() + 1).toString();
     setMessages(prev => [...prev, { id: botId, role: 'model', text: '', isStreaming: true }]);
     setIsTyping(true);
 
+    let fullText = '';
+
     try {
-      const responseStream = await chatRef.current.sendMessageStream({ message: userMessage });
-      
-      let fullText = '';
-      for await (const chunk of responseStream) {
-        const c = chunk as GenerateContentResponse;
-        if (c.text) {
-          fullText += c.text;
-          // Update the streaming message in state
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === botId ? { ...msg, text: fullText } : msg
-            )
-          );
+      const response = await fetch('/api/director', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiHistoryRef.current })
+      });
+
+      if (!response.ok || !response.body) throw new Error('Stream request failed');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.text) {
+              fullText += parsed.text;
+              setMessages(prev =>
+                prev.map(msg => msg.id === botId ? { ...msg, text: fullText } : msg)
+              );
+            }
+          } catch (parseErr) {
+            // Ignore incomplete SSE chunks
+          }
         }
       }
-      
-      // Mark as done streaming
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === botId ? { ...msg, isStreaming: false } : msg
-        )
-      );
 
+      // Save completed response to API history
+      if (fullText) {
+        apiHistoryRef.current.push({ role: 'model', text: fullText });
+      }
+
+      setMessages(prev =>
+        prev.map(msg => msg.id === botId ? { ...msg, isStreaming: false } : msg)
+      );
     } catch (error) {
       console.error("Chat error:", error);
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === botId ? { ...msg, text: "Cut! Something went wrong on set (Network error). Let's take it from the top.", isStreaming: false } : msg
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === botId
+            ? { ...msg, text: "Cut! Something went wrong on set. Let's take it from the top.", isStreaming: false }
+            : msg
         )
       );
+      // Remove failed user message from API history
+      apiHistoryRef.current.pop();
     } finally {
       setIsTyping(false);
     }
@@ -111,30 +136,30 @@ const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
       </button>
 
       {/* Chat Panel */}
-      <div 
+      <div
         className={`fixed bottom-24 right-6 w-[90vw] md:w-[400px] h-[600px] max-h-[75vh] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col z-40 transition-all duration-300 transform origin-bottom-right
           ${isOpen ? 'scale-100 opacity-100' : 'scale-90 opacity-0 pointer-events-none'}
         `}
       >
         {/* Header */}
         <div className="p-4 border-b border-slate-800 flex items-center gap-3 bg-slate-900/80 backdrop-blur rounded-t-2xl">
-           <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center">
-             <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-           </div>
-           <div>
-             <h3 className="text-white font-bold leading-tight">AI Director</h3>
-             <p className="text-xs text-brand-400">Cinematography Assistant</p>
-           </div>
+          <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+          </div>
+          <div>
+            <h3 className="text-white font-bold leading-tight">AI Director</h3>
+            <p className="text-xs text-brand-400">Cinematography Assistant</p>
+          </div>
         </div>
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div 
+              <div
                 className={`max-w-[85%] rounded-2xl p-3 ${
-                  msg.role === 'user' 
-                    ? 'bg-brand-600 text-white rounded-tr-sm' 
+                  msg.role === 'user'
+                    ? 'bg-brand-600 text-white rounded-tr-sm'
                     : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-tl-sm'
                 }`}
               >
@@ -146,7 +171,7 @@ const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
                       <>
                         <MarkdownRenderer content={msg.text} />
                         {onApplyPrompt && !msg.isStreaming && (
-                          <button 
+                          <button
                             onClick={() => onApplyPrompt(msg.text)}
                             className="mt-2 text-xs flex items-center gap-1 text-brand-400 hover:text-brand-300 transition-colors bg-slate-900/50 px-2 py-1 rounded border border-slate-700 hover:border-brand-500"
                             title="Send to Playground"
@@ -192,7 +217,7 @@ const AiDirectorChat: React.FC<AiDirectorChatProps> = ({ onApplyPrompt }) => {
           </form>
         </div>
       </div>
-      
+
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes bounce-slight {
           0%, 100% { transform: translateY(0); }

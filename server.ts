@@ -1,60 +1,46 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { createServer as createHttpServer } from "http";
-import { Server } from "socket.io";
+import { analyzeHandler, enhanceHandler, filterHandler, translateHandler, directorHandler, posts } from "./lib/handlers";
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = 3002;
   const httpServer = createHttpServer(app);
-  const io = new Server(httpServer, {
-    cors: { origin: "*" }
-  });
 
   app.use(express.json());
 
-  // In-memory store for forum posts
-  const posts: any[] = [
-    {
-      id: "1",
-      author: "Seedance Team",
-      avatar: "🌱",
-      content: "Welcome to the Seedance 2.0 Community Forum! Share your best prompts here.",
-      timestamp: Date.now() - 100000,
-      likes: 5,
+  // Forum endpoints
+  app.get("/api/posts", (_req, res) => res.json(posts));
+  app.post("/api/posts", (req, res) => {
+    const { action, postId, author, avatar, content } = req.body;
+
+    if (action === 'like') {
+      const post = posts.find((p: any) => p.id === postId);
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      post.likes += 1;
+      return res.json(post);
     }
-  ];
 
-  app.get("/api/posts", (req, res) => {
-    res.json(posts);
+    if (!content?.trim()) return res.status(400).json({ error: 'content required' });
+    const post = {
+      id: Math.random().toString(36).substring(2, 9),
+      author: author || 'Anonymous',
+      avatar: avatar || '👤',
+      content,
+      timestamp: Date.now(),
+      likes: 0
+    };
+    posts.unshift(post);
+    return res.json(post);
   });
 
-  io.on("connection", (socket) => {
-    console.log("User connected to forum", socket.id);
-
-    socket.on("new_post", (post) => {
-      const newPost = {
-        ...post,
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: Date.now(),
-        likes: 0,
-      };
-      posts.unshift(newPost);
-      io.emit("post_added", newPost);
-    });
-
-    socket.on("like_post", (postId) => {
-      const post = posts.find(p => p.id === postId);
-      if (post) {
-        post.likes += 1;
-        io.emit("post_updated", post);
-      }
-    });
-
-    socket.on("disconnect", () => {
-      console.log("User disconnected", socket.id);
-    });
-  });
+  // Gemini AI endpoints (API key stays server-side only)
+  app.post("/api/analyze", analyzeHandler);
+  app.post("/api/enhance", enhanceHandler);
+  app.post("/api/filter", filterHandler);
+  app.post("/api/translate", translateHandler);
+  app.post("/api/director", directorHandler);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

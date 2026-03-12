@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import React, { useEffect, useState, useCallback } from 'react';
 
 interface Post {
   id: string;
@@ -16,82 +15,81 @@ interface UserProfile {
 }
 
 const AVATAR_OPTIONS = ['👨‍🚀', '👩‍🎨', '🤖', '👽', '🦊', '🐯', '🦁', '🦄', '🐲', '🧙‍♂️'];
+const POLL_INTERVAL_MS = 10000;
 
 const CommunityForum: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [tempUsername, setTempUsername] = useState('');
   const [tempAvatar, setTempAvatar] = useState(AVATAR_OPTIONS[0]);
-  
-  const socketRef = useRef<Socket | null>(null);
+
+  const fetchPosts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/posts');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setPosts(data);
+      setIsOnline(true);
+    } catch {
+      setIsOnline(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // Load profile from local storage
     const savedProfile = localStorage.getItem('seedance_user_profile');
-    if (savedProfile) {
-      setUserProfile(JSON.parse(savedProfile));
-    }
+    if (savedProfile) setUserProfile(JSON.parse(savedProfile));
 
-    // Fetch initial posts
-    fetch('/api/posts')
-      .then(res => res.json())
-      .then(data => setPosts(data))
-      .catch(err => console.error("Failed to fetch posts", err));
-
-    // Connect socket
-    const socket = io();
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      setIsConnected(true);
-    });
-
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-    });
-
-    socket.on('post_added', (post: Post) => {
-      setPosts(prev => [post, ...prev]);
-    });
-
-    socket.on('post_updated', (updatedPost: Post) => {
-      setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p));
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
+    fetchPosts();
+    const interval = setInterval(fetchPosts, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [fetchPosts]);
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!tempUsername.trim()) return;
-    
     const profile = { username: tempUsername, avatar: tempAvatar };
     setUserProfile(profile);
     localStorage.setItem('seedance_user_profile', JSON.stringify(profile));
   };
 
-  const handlePostSubmit = (e: React.FormEvent) => {
+  const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostContent.trim() || !userProfile) return;
+    if (!newPostContent.trim() || !userProfile || isSubmitting) return;
 
-    if (socketRef.current) {
-      socketRef.current.emit('new_post', {
-        author: userProfile.username,
-        avatar: userProfile.avatar,
-        content: newPostContent,
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          author: userProfile.username,
+          avatar: userProfile.avatar,
+          content: newPostContent
+        })
       });
+      if (!res.ok) throw new Error('Failed to post');
+      const newPost = await res.json();
+      setPosts(prev => [newPost, ...prev]);
       setNewPostContent('');
+    } catch {
+      // Silent fail — post will appear on next poll if server accepted it
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleLike = (postId: string) => {
-    if (socketRef.current) {
-      socketRef.current.emit('like_post', postId);
-    }
+    // Optimistic client-side update
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+    // Sync to server (best effort)
+    fetch('/api/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'like', postId })
+    }).catch(console.error);
   };
 
   const formatTime = (timestamp: number) => {
@@ -107,9 +105,9 @@ const CommunityForum: React.FC = () => {
           <p className="text-slate-400">Discuss Seedance 2.0, share your best prompts, and help others.</p>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className={isConnected ? 'text-green-400' : 'text-red-400'}>
-            {isConnected ? 'Live' : 'Connecting...'}
+          <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+          <span className={isOnline ? 'text-green-400' : 'text-yellow-400'}>
+            {isOnline ? 'Live' : 'Connecting...'}
           </span>
         </div>
       </header>
@@ -117,7 +115,7 @@ const CommunityForum: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Profile & Create Post */}
         <div className="lg:col-span-1 space-y-6">
-          
+
           {!userProfile ? (
             <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
               <h2 className="text-lg font-bold text-white mb-4">Join the Discussion</h2>
@@ -142,8 +140,8 @@ const CommunityForum: React.FC = () => {
                         type="button"
                         onClick={() => setTempAvatar(avatar)}
                         className={`text-2xl p-2 rounded-lg transition-all ${
-                          tempAvatar === avatar 
-                            ? 'bg-brand-500/20 border border-brand-500 scale-110' 
+                          tempAvatar === avatar
+                            ? 'bg-brand-500/20 border border-brand-500 scale-110'
                             : 'bg-slate-900 border border-slate-700 hover:bg-slate-800'
                         }`}
                       >
@@ -173,7 +171,7 @@ const CommunityForum: React.FC = () => {
                   <span className="text-xs font-medium text-slate-300 max-w-[80px] truncate">{userProfile.username}</span>
                 </div>
               </div>
-              
+
               <form onSubmit={handlePostSubmit} className="space-y-4">
                 <div>
                   <textarea
@@ -186,10 +184,10 @@ const CommunityForum: React.FC = () => {
                 </div>
                 <button
                   type="submit"
-                  disabled={!isConnected || !newPostContent.trim()}
+                  disabled={!newPostContent.trim() || isSubmitting}
                   className="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Post to Forum
+                  {isSubmitting ? 'Posting...' : 'Post to Forum'}
                 </button>
                 <button
                   type="button"
@@ -230,7 +228,7 @@ const CommunityForum: React.FC = () => {
                   {post.content}
                 </p>
                 <div className="flex items-center gap-4 border-t border-slate-700/50 pt-3">
-                  <button 
+                  <button
                     onClick={() => handleLike(post.id)}
                     className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-brand-400 transition-colors group"
                   >

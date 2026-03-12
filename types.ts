@@ -17,11 +17,6 @@ export interface AnalysisResult {
   suggestions: string[];
 }
 
-export interface GenerationResult {
-  imageUrl?: string;
-  error?: string;
-}
-
 export interface ExamplePrompt {
   id: string;
   title: string;
